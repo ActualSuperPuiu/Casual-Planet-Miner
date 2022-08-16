@@ -1,7 +1,8 @@
 # Casual Planet Miner
 
-Planet miner is a game I made using raylib and lua.
+Casual Planet miner is a game I made using raylib and lua.
 It is a basic game about mining planets. You can change between them, upgrade your mining powerand other.
+
 
 # Compiling and using
 If you want to compile your own version, you have to download two things: [raylib](https://www.raylib.com) and [this binding](https://github.com/TSnake41/raylib-lua).
