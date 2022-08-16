@@ -5,4 +5,9 @@ It is a basic game about mining planets. You can change between them, upgrade yo
 
 
 # Compiling and using
-To run the game, you need to run the raylib installer that comes with the game or you can download it [here](https://www.raylib.com) (for building your own version, you have to download this as well [this binding](https://github.com/TSnake41/raylib-lua).)
+
+For custom compiling, you need [raylib](https://www.raylib.com) and [lua binding](https://github.com/TSnake41/raylib-lua).
+Older code is undocumented and may break any time, be careful if you're editing it!
+
+# Glitched versions and Other
+Glitched versions are versions that were released without much testing. They usually crash, the game might be insecure and other.
