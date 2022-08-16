@@ -1,32 +1,31 @@
 local screenWidth, screenHeight = 600, 600
-local Version = 0.2
+local Version = 0.3
 
-local DrawText = rl.DrawText
-local DrawCircleV = rl.DrawCircleV
-local new = rl.new
-local DrawTexturePro = rl.DrawTexturePro
-local DrawRectanglePro = rl.DrawRectanglePro
+setmetatable(_G, {__index = rl})
 
-rl.InitWindow(screenWidth, screenHeight, "Planet Miner - "..Version)
-rl.InitAudioDevice()
 
+ InitWindow(screenWidth, screenHeight, "Planet Miner - "..Version)
+ InitAudioDevice()
+
+repeat until  IsAudioDeviceReady()
 local Loaded = false
-local Mine = new("Sound", rl.LoadSound("Mine.wav"))
-local Upgrade = new("Sound", rl.LoadSound("Upgrade.wav"))
-local Music = new("Music", rl.LoadMusicStream("Music.mp3"))
+local Mine = new("Sound",  LoadSound("Mine.wav"))
+local Upgrade = new("Sound",  LoadSound("Upgrade.wav"))
 
-rl.SetTargetFPS(60)
+local Music = new("Music",  LoadMusicStream("music.xm"))
+ PlayMusicStream(Music)
+ SetTargetFPS(60)
 
-local Background = rl.LoadTexture("Background.png")
+local Background =  LoadTexture("Background.png")
 
-local GroupLogo = rl.LoadTexture("NoBackgroundPuius.png")
+local GroupLogo =  LoadTexture("NoBackgroundPuius.png")
 
 local Particle = {}
 
 local Planets = {
     [1] = {
         -- Earth
-        ["Image"] = rl.LoadTexture("Earth.png"),
+        ["Image"] =  LoadTexture("Earth.png"),
         ["Health"] = 2000,
         ["Bonus"] = 150,
         ["Name"] = "Earth",
@@ -35,7 +34,7 @@ local Planets = {
 
     [2] = {
         -- Mars
-        ["Image"] = rl.LoadTexture("Mars.png"),
+        ["Image"] = LoadTexture("Mars.png"),
         ["Health"] = 4000,
         ["Bonus"] = 350,
         ["Name"] = "Mars",
@@ -44,24 +43,33 @@ local Planets = {
 
     [3] = {
         -- Venus
-        ["Image"] = rl.LoadTexture("Venus.png"),
+        ["Image"] =  LoadTexture("Venus.png"),
         ["Health"] = 6000,
         ["Bonus"] = 1000,
         ["Name"] = "Venus",
         ["MaxHealth"] = 6000
+    },
+
+    [4] = {
+        -- Saturn
+        ["Image"] = LoadTexture("Saturn.png"),
+        ["Health"] = 10000,
+        ["Bonus"] = 4000,
+        ["Name"] = "Saturn",
+        ["MaxHealth"] = 10000
     }
 }
 
 local BonusPlanets = {
     ["Diamond"] = {
-        ["Image"] = rl.LoadTexture("DiamondPlanet.png"),
+        ["Image"] =  LoadTexture("DiamondPlanet.png"),
         ["Health"] = 4500, -- 4500
         ["Bonus"] = 10000,
         ["Name"] = "Diamond",
         ["MaxHealth"] = 2000,
     },
     ["Bronze"] = {
-        ["Image"] = rl.LoadTexture("Bronze.png"),
+        ["Image"] =  LoadTexture("Bronze.png"),
         ["Bonus"] = 2000,
         ["Health"] = 2000,
         ["Name"] = "Bronze",
@@ -69,7 +77,7 @@ local BonusPlanets = {
     },
     
     ["Gold"] = {
-        ["Image"] = rl.LoadTexture("Gold.png"),
+        ["Image"] =  LoadTexture("Gold.png"),
         ["Bonus"] = 5000,
         ["Health"] = 3500,
         ["Name"] = "Gold",
@@ -77,23 +85,42 @@ local BonusPlanets = {
     },
 }
 
+local function loadData(dataName)
+    local file = io.open("DataSaver\\"..dataName..".txt")
+
+    if file then
+     local data = file:read()
+     file:close()
+     return tonumber(data)
+    end
+    return nil
+end
+
+local function saveData(dataName, data)
+    pcall(function()
+        os.execute("mkdir ".."DataSaver")
+        local file = io.open("DataSaver\\"..dataName..".txt", "w")
+
+        file:write(data)
+        file:close()
+    end)
+end
+
 local CurrentPlanet = Planets[1]
 
 local CurrentPlanetLevel = 1
-local MaxPlanetLevel = 3
-local UnlockedLevel = 1
+local MaxPlanetLevel = 4
+local UnlockedLevel = loadData("UnlockedLevel") or 1
 
 local CurrentHealth = CurrentPlanet["Health"]
 
-local PlanetCircle = new("Rectangle", 0, 0, CurrentPlanet["Image"].width, CurrentPlanet["Image"].height)
-
 -- screenWidth/2 - texture.width/2, screenHeight/2 - texture.height/2, WHITE
 
-local Points = 0
-local PointsToUpgrade = 10
-local miningPoints = 1
-local autoMiningPoints = 0
-local PointsToUpgrade2 = 60 -- Auto cliker upgrade
+local Points = loadData("Points") or 0
+local PointsToUpgrade = loadData("PointsToUpgrade") or 10
+local miningPoints = loadData("miningPoints") or 1
+local autoMiningPoints = loadData("autoMiningPoints") or 1
+local PointsToUpgrade2 = loadData("PointsToUpgrade2") or 60 -- Auto cliker upgrade
 
 local Rotation = 0
 local ScreenCenter = new("Vector2", screenWidth/2, screenHeight/2)
@@ -104,13 +131,30 @@ local isLoaded = false
 
 local lastClock = os.clock()
 local UpgradeLastClock = os.clock()
+local programClock = os.clock()
+
+local function clean()
+     UnloadSound(Mine)
+     UnloadSound(Upgrade)
+     UnloadMusicStream(Music)
+     StopSoundMulti()
+     CloseWindow()
+     CloseAudioDevice()
+
+     saveData("Points", Points)
+     saveData("UnlockedLevel", UnlockedLevel)
+     saveData("autoMiningPoints", autoMiningPoints)
+     saveData("miningPoints", miningPoints)
+     saveData("PointsToUpgrade", PointsToUpgrade)
+     saveData("PointsToUpgrade2", PointsToUpgrade2)
+end
 
 local function iconDrawer()
     local iconRectangle = new("Rectangle", 0, 0, GroupLogo.width, GroupLogo.height)
 
-    rl.BeginDrawing()
+     BeginDrawing()
 
-    rl.ClearBackground(rl.BLACK)
+     ClearBackground( BLACK)
 
     DrawTexturePro(
         GroupLogo,
@@ -118,11 +162,11 @@ local function iconDrawer()
         new("Rectangle", screenWidth/2, screenHeight/2, iconRectangle.width, iconRectangle.height),
         new("Vector2", GroupLogo.width / 2, GroupLogo.height / 2), -- center
         0,
-        rl.WHITE
+         WHITE
     )
 
-    rl.DrawText("Made by the Puius Team.", 120, 450, 30, rl.RAYWHITE)
-    rl.EndDrawing()
+     DrawText("Made by the Puius Team.", 120, 450, 30,  RAYWHITE)
+     EndDrawing()
 end
 
 iconDrawer()
@@ -132,7 +176,7 @@ local function mineFunc(nr)
     Points = Points + nr
     CurrentHealth = CurrentHealth - nr
 
-    rl.PlaySound(Mine)
+    PlaySoundMulti(Mine)
 end
 
 local function changeCurrentPlanet(newPlanet, isBonus)
@@ -152,16 +196,21 @@ end
 
 repeat until (os.clock() - tempClock) >= 2
 
-rl.PlayMusicStream(Music)
-
 --                            <PROGRAM>                          --
-while not rl.WindowShouldClose() do
+while not  WindowShouldClose() do
 
 --                   <CORE PARTS>               --
-    Rotation = Rotation + 0.5
-    local mousePos = rl.GetMousePosition()
 
-    if rl.IsKeyPressed(rl.KEY_RIGHT) then 
+pcall(function()
+     UpdateMusicStream(Music)
+end)
+
+     local PlanetCircle = new("Rectangle", 0, 0, CurrentPlanet["Image"].width, CurrentPlanet["Image"].height)
+
+    Rotation = Rotation + 0.5
+    local mousePos =  GetMousePosition()
+
+    if  IsKeyPressed( KEY_RIGHT) then 
         if CurrentPlanetLevel < UnlockedLevel then
             -- print("Changing current planet..")
            CurrentPlanetLevel = CurrentPlanetLevel + 1
@@ -169,7 +218,7 @@ while not rl.WindowShouldClose() do
         end
     end
 
-    if rl.IsKeyPressed(rl.KEY_LEFT) then
+    if  IsKeyPressed( KEY_LEFT) then
         if CurrentPlanetLevel ~= 1 then
             CurrentPlanetLevel = CurrentPlanetLevel - 1
             changeCurrentPlanet(CurrentPlanetLevel, false)
@@ -177,9 +226,8 @@ while not rl.WindowShouldClose() do
     end
 
     local currentTime = os.clock() - lastClock
-    rl.UpdateMusicStream(Music)
 
-    if rl.IsMouseButtonPressed(rl.MOUSE_BUTTON_LEFT) and isUpgradeOpen == false then
+    if  IsMouseButtonPressed( MOUSE_BUTTON_LEFT) and isUpgradeOpen == false then
         local newParticTable = {
             ["Clock"] = os.clock(),
             ["pos"] = mousePos
@@ -189,23 +237,14 @@ while not rl.WindowShouldClose() do
         mineFunc(miningPoints)
     end
 
-    if rl.IsKeyPressed(rl.KEY_U) then
+    if  IsKeyPressed( KEY_U) then
         if isUpgradeOpen then
             isUpgradeOpen = false
         else
             isUpgradeOpen = true
         end
 
-        rl.PlaySound(Upgrade) 
-    end
-
-    if rl.IsKeyPressed(rl.KEY_O) and Points >= PointsToUpgrade2 then
-        rl.PlaySound(Upgrade)
-
-        Points = Points - PointsToUpgrade2
-
-        PointsToUpgrade2 = PointsToUpgrade2 * 2
-        autoMiningPoints = autoMiningPoints + 5
+        PlaySoundMulti(Upgrade) 
     end
     
     if currentTime >= 2 and autoMiningPoints > 0 then
@@ -242,24 +281,24 @@ while not rl.WindowShouldClose() do
 end
 --                   <CORE PARTS>               --
     -- Drawing
-    rl.BeginDrawing()
+     BeginDrawing()
     
-    rl.ClearBackground(rl.BLACK)
+     ClearBackground( BLACK)
     
-    DrawTexturePro(Background, new("Rectangle", 0, 0, 600, 600), new("Rectangle", 0, 0, 600, 600), rl.Vector2Zero(), 0, rl.WHITE)
+    DrawTexturePro(Background, new("Rectangle", 0, 0, 600, 600), new("Rectangle", 0, 0, 600, 600),  Vector2Zero(), 0,  WHITE)
     
     DrawTexturePro(CurrentPlanet["Image"],
     PlanetCircle,
     new("Rectangle", screenWidth/2, screenHeight/2, PlanetCircle.width, PlanetCircle.height),
     new("Vector2", CurrentPlanet["Image"].width / 2, CurrentPlanet["Image"].height / 2), -- center
     Rotation,
-    rl.WHITE
+     WHITE
 )
 
 for i = 1, #Particle do
     if (os.clock() - Particle[i]["Clock"]) < 2 then
         Particle[i]["pos"] = Particle[i]["pos"] - new("Vector2", 0, 6)
-        DrawText(""..miningPoints, Particle[i]["pos"].x, Particle[i]["pos"].y, 20, rl.RAYWHITE)
+        DrawText(""..miningPoints, Particle[i]["pos"].x, Particle[i]["pos"].y, 20,  RAYWHITE)
     else
        
     end
@@ -268,17 +307,18 @@ end
     if not isUpgradeOpen then
      
         -- Main text
-     DrawText("Points: "..Points, 10, 10, 20, rl.RAYWHITE)
-     DrawText("Press U to open the upgrade menu. ", 10, 30, 20, rl.RAYWHITE)
-     DrawText("Press O to get an auto click. ("..PointsToUpgrade2.." Points)", 10, 50, 20, rl.RAYWHITE)
-     DrawText("Health: "..CurrentHealth, 10, 580, 20, rl.RAYWHITE)
-     DrawText("Planet Name: "..CurrentPlanet["Name"], 350, 580, 20 ,rl.RAYWHITE)
+     DrawText("Points: "..Points, 10, 10, 20,  RAYWHITE)
+     DrawText("Press U to open the upgrade menu. ", 10, 30, 20,  RAYWHITE)
+     DrawText("Health: "..CurrentHealth, 10, 580, 20,  RAYWHITE)
+     DrawText("Planet Name: "..CurrentPlanet["Name"], 350, 580, 20 , RAYWHITE)
     
     end
 
     if isUpgradeOpen then
         local MiningPowerRec = new("Rectangle", screenWidth/2, screenHeight/2, 80, 40)
         local MiningPowerBounds = new("Rectangle", screenWidth/2 + -90, screenHeight/2 - 100, 70, 20)
+        local AutoMiningRec = new("Rectangle", screenWidth/2 + 20, screenHeight/2 + -1, 80, 40)
+        local AutoMiningBounds = new("Rectangle", screenWidth/2 + 20, screenHeight/2 + -100, 80, 40)
 
         local frameRec = new("Rectangle", screenWidth/2 + 80 / 2, screenHeight/2 - 40 / 2, 300, 200)
 
@@ -286,39 +326,63 @@ end
         frameRec,
         new("Vector2", 160, 100),
         0,
-        rl.RAYWHITE)
+         RAYWHITE)
 
         DrawRectanglePro(
             MiningPowerRec,
             new("Vector2", 100, 100),
             0,
-            rl.GRAY
+             GRAY
         )
 
-        DrawText("Mining power:", 208, 210 , 10, rl.RAYWHITE)
-        DrawText(""..miningPoints, 209, 225, 10, rl.RAYWHITE)
-        DrawText("Cost: "..PointsToUpgrade, 209, 245, 10, rl.GRAY)
+        DrawRectanglePro(
+            AutoMiningRec,
+            new("Vector2", 10, 100),
+            0,
+             GRAY
+        )
 
-        if (rl.CheckCollisionPointRec(mousePos, MiningPowerBounds)) == true and Points >= PointsToUpgrade then
-            if rl.IsMouseButtonDown(rl.MOUSE_BUTTON_LEFT) and (os.clock() - UpgradeLastClock) >= 0.5 then
+
+        DrawText("Mining power:", 208, 210 , 10,  RAYWHITE)
+        DrawText(""..miningPoints, 209, 225, 10,  RAYWHITE)
+        DrawText("Cost: "..PointsToUpgrade, 209, 245, 10,  GRAY)
+        DrawText("Cost: "..PointsToUpgrade2, 320, 245, 10,  GRAY)
+        DrawText("Miners: ", 320, 208, 10,  RAYWHITE)
+        DrawText(""..autoMiningPoints, 320, 225, 10,  RAYWHITE)
+
+        if ( CheckCollisionPointRec(mousePos, MiningPowerBounds)) == true and Points >= PointsToUpgrade then
+            if  IsMouseButtonDown( MOUSE_BUTTON_LEFT) and (os.clock() - UpgradeLastClock) >= 0.5 then
             
             Points = Points - PointsToUpgrade
             
             PointsToUpgrade = PointsToUpgrade * 3
             miningPoints = miningPoints * 2
 
-            rl.PlaySound(Upgrade)
+            PlaySoundMulti(Upgrade)
+            UpgradeLastClock = os.clock()
+        end
+    elseif  CheckCollisionPointRec(mousePos, AutoMiningBounds) == true and Points >= PointsToUpgrade2 then
+        -- print("Buying miners..")
+        if  IsMouseButtonDown( MOUSE_BUTTON_LEFT) and (os.clock() - UpgradeLastClock) >= 0.5 then
+            
+            Points = Points - PointsToUpgrade2
+            
+            PointsToUpgrade2 = PointsToUpgrade2 * 3
+            autoMiningPoints = autoMiningPoints * 2
+
+            PlaySoundMulti(Upgrade)
             UpgradeLastClock = os.clock()
         end
     end
 end
 
-    rl.EndDrawing()
+     EndDrawing()
 
     -- Value updating
     CurrentPlanet["Health"] = CurrentHealth
+
+    -- print(os.clock() - programClock.." since last tick!")
+    -- programClock = os.clock()
 end
 
-rl.CloseWindow()
-rl.CloseAudioDevice()
-rl.UnloadMusicStream(Music)
+clean()
