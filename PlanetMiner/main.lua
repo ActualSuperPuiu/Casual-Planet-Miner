@@ -1,5 +1,37 @@
+-- this function converts a string to base64
+function to_base64(data)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    return ((data:gsub('.', function(x) 
+        local r,b='',x:byte()
+        for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+        if (#x < 6) then return '' end
+        local c=0
+        for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+        return b:sub(c+1,c+1)
+    end)..({ '', '==', '=' })[#data%3+1])
+end
+ 
+-- this function converts base64 to string
+function from_base64(data)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    data = string.gsub(data, '[^'..b..'=]', '')
+    return (data:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r,f='',(b:find(x)-1)
+        for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if (#x ~= 8) then return '' end
+        local c=0
+        for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
+        return string.char(c)
+    end))
+end
+
 local screenWidth, screenHeight = 600, 600
-local Version = 0.3
+local Version = 0.4
 
 setmetatable(_G, {__index = rl})
 
@@ -12,13 +44,26 @@ local Loaded = false
 local Mine = new("Sound",  LoadSound("Mine.wav"))
 local Upgrade = new("Sound",  LoadSound("Upgrade.wav"))
 
-local Music = new("Music",  LoadMusicStream("music.xm"))
- PlayMusicStream(Music)
- SetTargetFPS(60)
+local Music = new("Music", LoadMusicStream("music.xm"))
+
+PlayMusicStream(Music)
+SetTargetFPS(60)
 
 local Background =  LoadTexture("Background.png")
-
 local GroupLogo =  LoadTexture("NoBackgroundPuius.png")
+local UFO = LoadTexture("UFO.png")
+
+local AsteroidData = {
+    ["AsteroidPosition"] = new("Vector2", 0, 0),
+    ["AsteroidSpawned"] = false,
+    ["IsAsteroidMined"] = false,
+    ["AsteroidClock"] = 0,
+    ["Health"] = 0,
+    ["MaxHealth"] = 0,
+    ["Bonus"] = 0,
+    ["Name"] = "Asteroid",
+    ["Image"] = LoadTexture("Asteroid.png")
+}
 
 local Particle = {}
 
@@ -89,9 +134,15 @@ local function loadData(dataName)
     local file = io.open("DataSaver\\"..dataName..".txt")
 
     if file then
+        local newData
      local data = file:read()
      file:close()
-     return tonumber(data)
+
+     if data then
+        newData = from_base64(tostring(data))
+     end
+
+     return tonumber(newData)
     end
     return nil
 end
@@ -101,7 +152,9 @@ local function saveData(dataName, data)
         os.execute("mkdir ".."DataSaver")
         local file = io.open("DataSaver\\"..dataName..".txt", "w")
 
-        file:write(data)
+        local newData = to_base64(tostring(data))
+
+        file:write(newData)
         file:close()
     end)
 end
@@ -218,10 +271,16 @@ end)
         end
     end
 
-    if  IsKeyPressed( KEY_LEFT) then
+    if  IsKeyPressed(KEY_LEFT) then
         if CurrentPlanetLevel ~= 1 then
             CurrentPlanetLevel = CurrentPlanetLevel - 1
             changeCurrentPlanet(CurrentPlanetLevel, false)
+        end
+    end
+
+    if IsKeyPressed(KEY_SPACE) then
+        if AsteroidData["AsteroidSpawned"] == true then
+            CurrentPlanet = AsteroidData
         end
     end
 
@@ -283,7 +342,7 @@ end
     -- Drawing
      BeginDrawing()
     
-     ClearBackground( BLACK)
+     ClearBackground(BLACK)
     
     DrawTexturePro(Background, new("Rectangle", 0, 0, 600, 600), new("Rectangle", 0, 0, 600, 600),  Vector2Zero(), 0,  WHITE)
     
@@ -307,7 +366,7 @@ end
     if not isUpgradeOpen then
      
         -- Main text
-     DrawText("Points: "..Points, 10, 10, 20,  RAYWHITE)
+     DrawText("Cash: "..Points, 10, 10, 20,  RAYWHITE)
      DrawText("Press U to open the upgrade menu. ", 10, 30, 20,  RAYWHITE)
      DrawText("Health: "..CurrentHealth, 10, 580, 20,  RAYWHITE)
      DrawText("Planet Name: "..CurrentPlanet["Name"], 350, 580, 20 , RAYWHITE)
@@ -320,7 +379,7 @@ end
         local AutoMiningRec = new("Rectangle", screenWidth/2 + 20, screenHeight/2 + -1, 80, 40)
         local AutoMiningBounds = new("Rectangle", screenWidth/2 + 20, screenHeight/2 + -100, 80, 40)
 
-        local frameRec = new("Rectangle", screenWidth/2 + 80 / 2, screenHeight/2 - 40 / 2, 300, 200)
+        local frameRec = new("Rectangle", screenWidth/2 + 60 / 2, screenHeight/2 - 40 / 2, 300, 200)
 
         DrawRectanglePro(
         frameRec,
@@ -375,14 +434,34 @@ end
         end
     end
 end
+    if AsteroidData["AsteroidSpawned"] and AsteroidData["AsteroidClock"] ~= 0 and (os.clock() - AsteroidData["AsteroidClock"]) <= 2 then
+       AsteroidData["AsteroidPosition"] = AsteroidData["AsteroidPosition"] + new("Vector2", 5, 5)
+       DrawRectangleV(AsteroidData["AsteroidPosition"], new("Vector2",20, 20), GRAY)
+    elseif AsteroidData["AsteroidSpawned"] == false then
+        local rand = math.random(0, 1000)
 
-     EndDrawing()
+        if rand == 800 then
+            local Health = math.random(100, 1000) * (miningPoints / 2)
 
+            AsteroidData["AsteroidSpawned"] = true
+            AsteroidData["AsteroidClock"] = os.clock()
+            AsteroidData["MaxHealth"] = Health
+            AsteroidData["Health"] = Health
+            AsteroidData["Bonus"] = miningPoints * autoMiningPoints
+
+        else
+            AsteroidData["AsteroidSpawned"] = false
+            AsteroidData["AsteroidClock"] = 0
+        end
+
+    end
     -- Value updating
     CurrentPlanet["Health"] = CurrentHealth
 
     -- print(os.clock() - programClock.." since last tick!")
     -- programClock = os.clock()
+
+    EndDrawing()
 end
 
 clean()
